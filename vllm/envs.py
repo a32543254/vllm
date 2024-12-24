@@ -77,6 +77,7 @@ if TYPE_CHECKING:
     V_SCALE_CONSTANT: int = 100
     VLLM_SERVER_DEV_MODE: bool = False
     VLLM_V1_OUTPUT_PROC_CHUNK_SIZE: int = 128
+    VLLM_SYNAPSELLM_DEVICE: str = "CPU"
 
 
 def get_default_cache_root():
@@ -506,6 +507,10 @@ environment_variables: Dict[str, Callable[[], Any]] = {
     # TTFT and overall throughput.
     "VLLM_V1_OUTPUT_PROC_CHUNK_SIZE":
     lambda: int(os.getenv("VLLM_V1_OUTPUT_PROC_CHUNK_SIZE", "128")),
+    # SynapseLLM device selection
+    # default is CPU
+    "VLLM_SYNAPSELLM_DEVICE":
+    lambda: os.getenv("VLLM_SYNAPSELLM_DEVICE", "CPU").upper(),
 }
 
 # end-env-vars-definition

@@ -47,6 +47,7 @@ class PlatformEnum(enum.Enum):
     NEURON = enum.auto()
     OPENVINO = enum.auto()
     OOT = enum.auto()
+    SYNAPSELLM = enum.auto()
     UNSPECIFIED = enum.auto()
 
 
@@ -131,6 +132,9 @@ class Platform:
 
     def is_out_of_tree(self) -> bool:
         return self._enum == PlatformEnum.OOT
+
+    def is_synapsellm(self) -> bool:
+        return self._enum == PlatformEnum.SYNAPSELLM
 
     def is_cuda_alike(self) -> bool:
         """Stateless version of :func:`torch.cuda.is_available`."""

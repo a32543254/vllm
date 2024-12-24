@@ -390,6 +390,9 @@ def _is_openvino() -> bool:
 def _is_xpu() -> bool:
     return VLLM_TARGET_DEVICE == "xpu"
 
+def _is_synapsellm() -> bool:
+    return VLLM_TARGET_DEVICE == "synapsellm"
+
 
 def _build_custom_ops() -> bool:
     return _is_cuda() or _is_hip() or _is_cpu()
@@ -521,6 +524,8 @@ def get_vllm_version() -> str:
         version += f"{sep}cpu"
     elif _is_xpu():
         version += f"{sep}xpu"
+    elif _is_synapsellm():
+        version += f"{sep}synapsellm"
     else:
         raise RuntimeError("Unknown runtime environment")
 
@@ -581,10 +586,12 @@ def get_requirements() -> List[str]:
         requirements = _read_requirements("requirements-cpu.txt")
     elif _is_xpu():
         requirements = _read_requirements("requirements-xpu.txt")
+    elif _is_synapsellm():
+        requirements = _read_requirements("requirements-synapsellm.txt")
     else:
         raise ValueError(
             "Unsupported platform, please use CUDA, ROCm, Neuron, HPU, "
-            "OpenVINO, or CPU.")
+            "OpenVINO, SynapseLLM, or CPU.")
     return requirements
 
 
