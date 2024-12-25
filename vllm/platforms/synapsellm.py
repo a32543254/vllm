@@ -42,7 +42,7 @@ class SynapseLLMPlatform(Platform):
 
     @classmethod
     def inference_mode(cls):
-        pass
+        return torch.inference_mode(mode=True)
 
     @classmethod
     def is_synapsellm_cpu(cls) -> bool:

@@ -78,6 +78,13 @@ if TYPE_CHECKING:
     VLLM_SERVER_DEV_MODE: bool = False
     VLLM_V1_OUTPUT_PROC_CHUNK_SIZE: int = 128
     VLLM_SYNAPSELLM_DEVICE: str = "CPU"
+    VLLM_SYNAPSELLM_NUM_THREADS: int = 4
+    # TODO move to quant config
+    VLLM_SYNAPSELLM_WEIGHT_DTYPE: str = "auto"
+    VLLM_SYNAPSELLM_SCALE_DTYPE: str = "fp16"
+    VLLM_SYNAPSELLM_COMPUTE_DTYPE: str = "int8"
+    VLLM_SYNAPSELLM_GROUP_SIZE: int = -1
+    VLLM_SYNAPSELLM_QUANT_ALGORITHM: str = "sym"
 
 
 def get_default_cache_root():
@@ -511,6 +518,26 @@ environment_variables: Dict[str, Callable[[], Any]] = {
     # default is CPU
     "VLLM_SYNAPSELLM_DEVICE":
     lambda: os.getenv("VLLM_SYNAPSELLM_DEVICE", "CPU").upper(),
+
+    # SynapseLLM num cpu threads usage
+    "VLLM_SYNAPSELLM_NUM_THREADS":
+    lambda: os.getenv("VLLM_SYNAPSELLM_NUM_THREADS", 4),
+
+    # TODO move to quant config
+    "VLLM_SYNAPSELLM_WEIGHT_DTYPE":
+    lambda: os.getenv("VLLM_SYNAPSELLM_WEIGHT_DTYPE", "auto").lower(),
+
+    "VLLM_SYNAPSELLM_SCALE_DTYPE":
+    lambda: os.getenv("VLLM_SYNAPSELLM_SCALE_DTYPE", "fp16").lower(),
+
+    "VLLM_SYNAPSELLM_COMPUTE_DTYPE":
+    lambda: os.getenv("VLLM_SYNAPSELLM_COMPUTE_DTYPE", "int8").lower(),
+
+    "VLLM_SYNAPSELLM_GROUP_SIZE":
+    lambda: int(os.getenv("VLLM_SYNAPSELLM_GROUP_SIZE", -1)),
+
+    "VLLM_SYNAPSELLM_QUANT_ALGORITHM":
+    lambda: int(os.getenv("VLLM_SYNAPSELLM_QUANT_ALGORITHM", "sym")),
 }
 
 # end-env-vars-definition

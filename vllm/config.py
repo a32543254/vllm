@@ -1550,7 +1550,7 @@ class DeviceConfig:
             self.device_type = device
 
         # Some device types require processing inputs on CPU
-        if self.device_type in ["neuron", "openvino"]:
+        if self.device_type in ["neuron", "openvino", "synapsellm"]:
             self.device = torch.device("cpu")
         elif self.device_type in ["tpu"]:
             self.device = None
