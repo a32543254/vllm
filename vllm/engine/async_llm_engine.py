@@ -679,6 +679,9 @@ class AsyncLLMEngine(EngineClient):
             from vllm.executor.multiproc_gpu_executor import (
                 MultiprocessingGPUExecutorAsync)
             executor_class = MultiprocessingGPUExecutorAsync
+        elif engine_config.device_config.device_type == "synapsellm":
+            from vllm.executor.synapsellm_executor import SynapseLLMExecutorAsync
+            executor_class = SynapseLLMExecutorAsync
         else:
             from vllm.executor.gpu_executor import GPUExecutorAsync
             executor_class = GPUExecutorAsync

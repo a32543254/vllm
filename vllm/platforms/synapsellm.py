@@ -70,9 +70,6 @@ class SynapseLLMPlatform(Platform):
                 "Speculative decoding is not implemented for SynapseLLM")
 
         parallel_config = vllm_config.parallel_config
-        assert (
-            parallel_config.world_size == 1
-        ), "SynapseLLMExecutor only supports single CPU socket currently."
 
         if parallel_config.worker_cls == "auto":
             parallel_config.worker_cls = \
@@ -94,6 +91,10 @@ class SynapseLLMPlatform(Platform):
 
         # check and update cache config
         cache_config = vllm_config.cache_config
-        if cache_config and cache_config.block_size is None:
-            cache_config.block_size = 128
-            # cache_config.cache_dtype = "f16"
+        if cache_config:
+            # SynapseLLM needs block_size = max_model_len
+            # static kv cache (GUARANTEED_NO_EVICT) inside SynapseLLM
+            vllm_config.cache_config.block_size = \
+                vllm_config.model_config.max_model_len
+            if cache_config.cache_dtype is None:
+                cache_config.cache_dtype = "auto"
