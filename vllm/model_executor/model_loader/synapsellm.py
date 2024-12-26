@@ -92,6 +92,8 @@ class SynapseLLMCausalLM(nn.Module):
                       delete_after_load=self.delete_after_load,
                       )
 
+        self._occupied_kv_cache_block_ids = set()
+
     def init_model(self, **kwargs) -> None:
         logger.info(f"SynapseLLM model init: {kwargs}")
         self.model.init(**kwargs)
@@ -112,18 +114,30 @@ class SynapseLLMCausalLM(nn.Module):
         return logits
 
     # kv cache operations
-    def get_occupied_kv_cache_block_ids(self) -> torch.Tensor:
-        running_streams = self.model.get_streams()
-        logger.debug(f"SynapseLLM gets occupied kv cache block ids {running_streams}")
+    def get_cur_used_kv_cache_block_ids(self) -> List:
+        running_streams = self.model.get_streams().tolist()
+        logger.debug(f"SynapseLLM gets current used kv cache block ids {running_streams}")
         return running_streams
 
-    def free_block_id_kv_cache(self, block_id) -> None:
+    def free_block_id_kv_cache(self, block_id: int) -> None:
         logger.debug(f"SynapseLLM starts to free block_id {block_id} kv cache")
         self.model.free_stream(block_id)
+        assert block_id in self._occupied_kv_cache_block_ids
+        self._occupied_kv_cache_block_ids.remove(block_id)
 
-    def free_block_ids_kv_cache(self, block_ids) -> None:
+    def free_block_ids_kv_cache(self, block_ids: List[int]) -> None:
         logger.debug(f"SynapseLLM starts to free block_ids {block_ids} kv cache")
-        self.model.free_stream(block_ids)
+        self.model.free_streams(block_ids)
+
+    def update_occupied_kv_cache_block_ids(self) -> None:
+        cur_used_kv_cache_block_ids = self.get_cur_used_kv_cache_block_ids()
+        self._occupied_kv_cache_block_ids.update(cur_used_kv_cache_block_ids)
+
+    def get_occupied_kv_cache_block_ids(self) -> List:
+        return list(self._occupied_kv_cache_block_ids)
+
+    def reset_occupied_kv_cache_block_ids(self) -> None:
+        self._occupied_kv_cache_block_ids.clear()
 
     def compute_logits(self, hidden_states: torch.Tensor,
                        sampling_metadata: SamplingMetadata) -> torch.Tensor:
