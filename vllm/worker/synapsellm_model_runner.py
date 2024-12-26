@@ -86,7 +86,6 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
             raise NotImplementedError(
                 "Supports only Neural-Speed based models.")
 
-    # TODO request scheduler adaptor for SynapseLLM (maybe left for kv cache block table)
     def _prepare_prompt(
         self,
         seq_group_metadata_list: List[SequenceGroupMetadata],
@@ -105,7 +104,7 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
         multi_modal_kwargs_list: List[MultiModalKwargs] = []
         cur_block_ids = []
         if self.model is not None:
-            cur_block_ids = self.model.get_running_kv_cache_block_ids().tolist()
+            cur_block_ids = self.model.get_occupied_kv_cache_block_ids().tolist()
 
         for seq_group_metadata in seq_group_metadata_list:
             assert seq_group_metadata.is_prompt
@@ -120,7 +119,7 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
 
             input_tokens.append(prompt_tokens)
             input_positions.append(list(range(seq_len)))
-            attention_mask.append([0]*seq_len)
+            attention_mask.append([1]*seq_len)
 
             assert seq_group_metadata.block_tables is not None
             block_table = seq_group_metadata.block_tables[seq_id]
@@ -156,10 +155,10 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
                                                dtype=torch.long,
                                                device=self.device)
         attention_mask = make_tensor_with_pad(attention_mask,
-                                               pad=1,
-                                               max_len=max_seq_len,
-                                               dtype=torch.long,
-                                               device=self.device)
+                                              pad=0,
+                                              max_len=max_seq_len,
+                                              dtype=torch.long,
+                                              device=self.device)
         input_block_ids = torch.tensor(input_block_ids,
                                        dtype=torch.long,
                                        device=self.device)
@@ -185,7 +184,7 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
         input_tokens: List[List[int]] = []
         input_positions: List[List[int]] = []
         token_type_ids = None
-        attention_mask: None
+        attention_mask = None
         input_block_ids: List[int] = []
         context_lens: List[int] = []
 
@@ -252,7 +251,7 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
         else:
             (input_tokens, input_positions, token_type_ids, attention_mask,
              input_block_ids) = self._prepare_decode(seq_group_metadata_list)
-            # TODO
+            # TODO chunk_prefill
             seq_lens = None
             # decoding should not free kv cache
             kv_cache_block_ids_freed = None
@@ -295,7 +294,7 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
 
         if num_steps > 1:
             raise ValueError(
-                "NeuronModelRunner does not support multi-step execution.")
+                "SynapseLLMModelRunner does not support multi-step execution.")
 
         # free previous kv cache
         if model_input.kv_cache_block_ids_freed is not None:

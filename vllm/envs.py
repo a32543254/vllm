@@ -537,7 +537,7 @@ environment_variables: Dict[str, Callable[[], Any]] = {
     lambda: int(os.getenv("VLLM_SYNAPSELLM_GROUP_SIZE", -1)),
 
     "VLLM_SYNAPSELLM_QUANT_ALGORITHM":
-    lambda: int(os.getenv("VLLM_SYNAPSELLM_QUANT_ALGORITHM", "sym")),
+    lambda: os.getenv("VLLM_SYNAPSELLM_QUANT_ALGORITHM", "sym").lower(),
 }
 
 # end-env-vars-definition

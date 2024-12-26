@@ -77,12 +77,12 @@ class SynapseLLMPlatform(Platform):
 
         # check and update model config
         model_config = vllm_config.model_config
-        # TODO remove this
-        if model_config.dtype == torch.fp8e4m3:
-            logger.warning(
-                f"Only float32 dtype is supported on SynapseLLM, casting from {model_config.dtype}."  # noqa: G004, E501
-            )
-            model_config.dtype = torch.float32
+        # TODO check model dtype
+        # if model_config.dtype == torch.float8_e5m2:
+        #     logger.warning(
+        #         f"Only float32 dtype is supported on SynapseLLM, casting from {model_config.dtype}."  # noqa: G004, E501
+        #     )
+        #     model_config.dtype = torch.float32
         if model_config.enforce_eager:
             logger.warning(
                 "eager_mode is not supported on SynapseLLM backend, fallback to "

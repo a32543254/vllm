@@ -47,6 +47,8 @@ def _get_model_quant_config():
     quant_kwargs["group_size"] = int(envs.VLLM_SYNAPSELLM_GROUP_SIZE)
     quant_kwargs["alg"] = str(envs.VLLM_SYNAPSELLM_QUANT_ALGORITHM).lower()
 
+    return quant_kwargs
+
 def _get_cache_config(cache_config: CacheConfig, scheduler_config: SchedulerConfig):
     cache_kwargs = {}
     cache_kwargs["memory_dtype"] = cache_config.cache_dtype
@@ -79,7 +81,7 @@ class SynapseLLMCausalLM(nn.Module):
         # args for SynapseLLM model creation
         assert device_config.device_type == "synapsellm"
         self.device = "cpu" if current_platform.is_synapsellm_cpu() else "hpu"
-        self.interm_dtype = "f16"
+        self.interm_dtype = "fp16"
         self.cache_dir = "synapsellm_executable_model"
         self.delete_after_load = False
 
@@ -91,7 +93,7 @@ class SynapseLLMCausalLM(nn.Module):
                       )
 
     def init_model(self, **kwargs) -> None:
-        logger.debug(f"SynapseLLM model init: {kwargs}")
+        logger.info(f"SynapseLLM model init: {kwargs}")
         self.model.init(**kwargs)
 
     def forward(
@@ -110,13 +112,17 @@ class SynapseLLMCausalLM(nn.Module):
         return logits
 
     # kv cache operations
-    def get_running_kv_cache_block_ids(self) -> torch.Tensor:
-        return self.model.get_streams()
+    def get_occupied_kv_cache_block_ids(self) -> torch.Tensor:
+        running_streams = self.model.get_streams()
+        logger.debug(f"SynapseLLM gets occupied kv cache block ids {running_streams}")
+        return running_streams
 
     def free_block_id_kv_cache(self, block_id) -> None:
+        logger.debug(f"SynapseLLM starts to free block_id {block_id} kv cache")
         self.model.free_stream(block_id)
 
     def free_block_ids_kv_cache(self, block_ids) -> None:
+        logger.debug(f"SynapseLLM starts to free block_ids {block_ids} kv cache")
         self.model.free_stream(block_ids)
 
     def compute_logits(self, hidden_states: torch.Tensor,

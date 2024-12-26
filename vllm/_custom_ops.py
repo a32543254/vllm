@@ -12,7 +12,8 @@ from vllm.scalar_type import ScalarType
 
 logger = init_logger(__name__)
 
-if not current_platform.is_tpu() and not current_platform.is_hpu():
+if not current_platform.is_tpu() and not current_platform.is_hpu() and \
+    not current_platform.is_synapsellm():
     try:
         import vllm._C
     except ImportError as e:
