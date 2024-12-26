@@ -91,6 +91,7 @@ class SynapseLLMCausalLM(nn.Module):
                       )
 
     def init_model(self, **kwargs) -> None:
+        logger.debug(f"SynapseLLM model init: {kwargs}")
         self.model.init(**kwargs)
 
     def forward(
@@ -98,26 +99,25 @@ class SynapseLLMCausalLM(nn.Module):
         input_ids: torch.Tensor,
         token_type_ids: torch.Tensor = None,
         attention_mask: torch.Tensor = None,
-        stream_ids: torch.Tensor = None,
+        input_block_ids: torch.Tensor = None,
     ) -> torch.Tensor:
 
         logits = self.model(input_ids=input_ids,
                             token_type_ids=token_type_ids,
                             attention_mask=attention_mask,
-                            stream_ids=stream_ids)
+                            stream_ids=input_block_ids)
 
         return logits
 
-    # seq_id is maintained by synapsellm
-    # it's not equal to vLLM scheduler seq_id
-    def get_running_seqs_id(self) -> torch.Tensor:
+    # kv cache operations
+    def get_running_kv_cache_block_ids(self) -> torch.Tensor:
         return self.model.get_streams()
 
-    def free_seq_kv_cache(self, seq_id) -> None:
-        self.model.free_stream(seq_id)
+    def free_block_id_kv_cache(self, block_id) -> None:
+        self.model.free_stream(block_id)
 
-    def free_seqs_kv_cache(self, seqs_id) -> None:
-        self.model.free_stream(seqs_id)
+    def free_block_ids_kv_cache(self, block_ids) -> None:
+        self.model.free_stream(block_ids)
 
     def compute_logits(self, hidden_states: torch.Tensor,
                        sampling_metadata: SamplingMetadata) -> torch.Tensor:
@@ -140,11 +140,24 @@ def get_model(
     device_config: DeviceConfig,
     **kwargs,
 ) -> torch.nn.Module:
+
     lora_config = kwargs.get("lora_config")
     if lora_config:
         raise ValueError(
             "SynapseLLM backend does not support LoRA, "
             "but LoRA is enabled.")
+
+    speculative_config = kwargs.get("speculative_config")
+    if speculative_config:
+        raise ValueError(
+            "SynapseLLM backend does not support speculative decoding, "
+            "but speculative decoding is enabled.")
+
+    if scheduler_config.enable_chunked_prefill:
+        raise ValueError(
+            "SynapseLLM backend does not support chunked_prefill, "
+            "but it is enabled."
+        )
 
     # create model
     synapsellm_model = SynapseLLMCausalLM(model_config, device_config) 
