@@ -102,9 +102,9 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
 
         seq_lens: List[int] = []
         multi_modal_kwargs_list: List[MultiModalKwargs] = []
-        cur_block_ids = []
+        occupied_block_ids = []
         if self.model is not None:
-            cur_block_ids = self.model.get_occupied_kv_cache_block_ids().tolist()
+            occupied_block_ids = self.model.get_occupied_kv_cache_block_ids()
 
         for seq_group_metadata in seq_group_metadata_list:
             assert seq_group_metadata.is_prompt
@@ -125,8 +125,8 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
             block_table = seq_group_metadata.block_tables[seq_id]
             assert len(block_table) == 1
             input_block_ids.append(block_table[0])
-            if block_table[0] in cur_block_ids:
-                kv_cache_block_ids_freed.append([block_table])
+            if block_table[0] in occupied_block_ids:
+                kv_cache_block_ids_freed.append(block_table[0])
 
             mm_data = seq_group_metadata.multi_modal_data
             if mm_data:
@@ -139,8 +139,6 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
                     )
 
                 multi_modal_kwargs_list.append(mm_kwargs)
-
-        
 
         max_seq_len = max(seq_lens)
         assert max_seq_len > 0
@@ -165,11 +163,7 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
 
         multi_modal_kwargs = MultiModalKwargs.batch(multi_modal_kwargs_list)
 
-        if len(kv_cache_block_ids_freed) > 0:
-            kv_cache_block_ids_freed = torch.tensor(kv_cache_block_ids_freed,
-                                                    dtype=torch.long,
-                                                    device=self.device)
-        else:
+        if len(kv_cache_block_ids_freed) == 0:
             kv_cache_block_ids_freed = None
 
         return (input_tokens, input_positions, token_type_ids, attention_mask, input_block_ids,
@@ -308,9 +302,14 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
             **MultiModalKwargs.as_kwargs(model_input.multi_modal_kwargs or {},
                                          device=self.device),
         }
+        logger.debug(f"SynapseLLM input_block_ids: {model_input.input_block_ids}")
 
         # SynapseLLM does not support emit hidden_states directly
         logits = self.model(**execute_model_kwargs)
+
+        # update occupied_kv_cache_block_ids
+        if model_input.is_prompt:
+            self.model.update_occupied_kv_cache_block_ids()
 
         # Sample the next token.
         output = self.model.sample(
