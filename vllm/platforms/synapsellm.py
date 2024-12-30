@@ -15,7 +15,7 @@ else:
 logger = init_logger(__name__)
 
 try:
-    from neural_speed import Model
+    import neural_speed
 except ImportError as e:
     logger.warning("Failed to import SynapseLLM with %r", e)
 
@@ -93,7 +93,7 @@ class SynapseLLMPlatform(Platform):
         cache_config = vllm_config.cache_config
         if cache_config:
             # SynapseLLM needs block_size = max_model_len
-            # static kv cache (GUARANTEED_NO_EVICT) inside SynapseLLM
+            # static kv cache inside SynapseLLM
             vllm_config.cache_config.block_size = \
                 vllm_config.model_config.max_model_len
             if cache_config.cache_dtype is None:

@@ -510,6 +510,8 @@ def get_vllm_version() -> str:
         if neuron_version != MAIN_CUDA_VERSION:
             neuron_version_str = neuron_version.replace(".", "")[:3]
             version += f"{sep}neuron{neuron_version_str}"
+    elif _is_synapsellm():
+        version += f"{sep}synapsellm"
     elif _is_hpu():
         # Get the Intel Gaudi Software Suite version
         gaudi_sw_version = str(get_gaudi_sw_version())
@@ -524,8 +526,6 @@ def get_vllm_version() -> str:
         version += f"{sep}cpu"
     elif _is_xpu():
         version += f"{sep}xpu"
-    elif _is_synapsellm():
-        version += f"{sep}synapsellm"
     else:
         raise RuntimeError("Unknown runtime environment")
 
@@ -576,6 +576,8 @@ def get_requirements() -> List[str]:
         requirements = _read_requirements("requirements-rocm.txt")
     elif _is_neuron():
         requirements = _read_requirements("requirements-neuron.txt")
+    elif _is_synapsellm():
+        requirements = _read_requirements("requirements-synapsellm.txt")
     elif _is_hpu():
         requirements = _read_requirements("requirements-hpu.txt")
     elif _is_openvino():
@@ -586,8 +588,6 @@ def get_requirements() -> List[str]:
         requirements = _read_requirements("requirements-cpu.txt")
     elif _is_xpu():
         requirements = _read_requirements("requirements-xpu.txt")
-    elif _is_synapsellm():
-        requirements = _read_requirements("requirements-synapsellm.txt")
     else:
         raise ValueError(
             "Unsupported platform, please use CUDA, ROCm, Neuron, HPU, "
