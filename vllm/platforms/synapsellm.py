@@ -36,6 +36,7 @@ class SynapseLLMPlatform(Platform):
     def get_device_name(cls, device_id: int = 0) -> str:
         return "synapsellm"
 
+    # TODO check if async output processor has right output tokens (corner cases, eos, etc.)
     @classmethod
     def is_async_output_supported(cls, enforce_eager: Optional[bool]) -> bool:
         return False
