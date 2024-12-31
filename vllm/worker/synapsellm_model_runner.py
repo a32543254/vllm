@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from importlib.util import find_spec
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union, Callable
 
 import torch
 from torch import nn
@@ -36,6 +36,7 @@ class ModelInputForSynapseLLM(ModelRunnerInputBase):
     multi_modal_kwargs: Optional[BatchedTensorInputs] = None
     is_prompt: Optional[str] = True
     kv_cache_block_ids_freed: Optional[torch.Tensor] = None
+    async_callback: Optional[Callable] = None
 
     def as_broadcastable_tensor_dict(
             self) -> Dict[str, Union[int, torch.Tensor]]:
@@ -310,6 +311,9 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
         # update occupied_kv_cache_block_ids
         if model_input.is_prompt:
             self.model.update_occupied_kv_cache_block_ids()
+
+        if model_input.async_callback is not None:
+            model_input.async_callback()
 
         # Sample the next token.
         output = self.model.sample(
