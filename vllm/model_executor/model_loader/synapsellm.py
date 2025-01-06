@@ -60,7 +60,9 @@ def _get_cache_config(cache_config: CacheConfig, scheduler_config: SchedulerConf
 def _get_execute_config(scheduler_config: SchedulerConfig):
     execute_kwargs = {}
     execute_kwargs["threads"] = int(envs.VLLM_SYNAPSELLM_NUM_THREADS)
-    execute_kwargs["n_chunk"] = scheduler_config.max_num_batched_tokens
+    # chunk_size for prefilling
+    execute_kwargs["n_chunk"] = \
+        scheduler_config.max_num_batched_tokens // scheduler_config.max_num_seqs
 
     return execute_kwargs
 

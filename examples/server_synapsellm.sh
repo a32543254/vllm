@@ -28,23 +28,32 @@ cleanup() {
 # avoid refusing requests
 export http_proxy=""
 
-export VLLM_SYNAPSELLM_DEVICE="CPU"
+export VLLM_SYNAPSELLM_DEVICE="HPU"
 export VLLM_SYNAPSELLM_NUM_THREADS=32
 
 MODEL_NAME="Qwen/Qwen2.5-1.5B-Instruct"
-MAX_NUM_STREAMS=12
-MAX_CHUNK_SIZE=1024
+
+# benchmark config
+MAX_INPUT_LENGTH=512
+MAX_PREFIX_LENGTH=50
+MAX_OUTPUT_LENGTH=32
+NUM_PROMPTS=100
+QPS=2
+
+# synapsellm model config
+MAX_NUM_STREAMS=16
 MAX_CONTEXT_LENGTH=1024
+PREFILL_CHUNK_SIZE=640
+MAX_NUM_BATCHED_TOKENS=$[${PREFILL_CHUNK_SIZE} * ${MAX_NUM_STREAMS}]
 VLLM_DEVICE_TYPE="synapsellm"
 
 SERVER_PORT=8000
-QPS=2
 
 # launch synapsellm server
 vllm serve ${MODEL_NAME} \
     --port ${SERVER_PORT} \
     --max-num-seqs ${MAX_NUM_STREAMS} \
-    --max-num-batched-tokens ${MAX_CHUNK_SIZE} \
+    --max-num-batched-tokens ${MAX_NUM_BATCHED_TOKENS} \
     --max-model-len ${MAX_CONTEXT_LENGTH} \
     --device ${VLLM_DEVICE_TYPE} &
 
@@ -95,10 +104,10 @@ python3 ../benchmarks/benchmark_serving.py \
           --model ${MODEL_NAME} \
           --dataset-name sonnet \
           --dataset-path ../benchmarks/sonnet.txt \
-          --sonnet-input-len 512 \
-          --sonnet-output-len 32 \
-          --sonnet-prefix-len 50 \
-          --num-prompts 100 \
+          --sonnet-input-len ${MAX_INPUT_LENGTH} \
+          --sonnet-output-len ${MAX_OUTPUT_LENGTH} \
+          --sonnet-prefix-len ${MAX_PREFIX_LENGTH} \
+          --num-prompts ${NUM_PROMPTS} \
           --port ${SERVER_PORT} \
           --save-result \
           --result-dir "synapsellm_benchmark_serving" \

@@ -17,7 +17,8 @@ import os
 
 from vllm import LLM, SamplingParams
 
-os.environ["VLLM_SYNAPSELLM_DEVICE"] = "CPU"
+# CPU or HPU
+os.environ["VLLM_SYNAPSELLM_DEVICE"] = "HPU"
 os.environ['VLLM_SYNAPSELLM_NUM_THREADS'] = "32"
 
 # Sample prompts.
@@ -34,7 +35,9 @@ sampling_params = SamplingParams(temperature=0, top_p=0.95, max_tokens=32)
 llm = LLM(
     model="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     max_num_seqs=6,
-    max_num_batched_tokens=1024,
+    # the max_num_batched_tokens will determine the chunk_size for prefill
+    # which is max_num_batched_tokens // max_num_seqs
+    max_num_batched_tokens=512*6,
     # The max_model_len and block_size arguments are required to be same as
     # max sequence length when using SynapseLLM backend (no PagedAttention).
     max_model_len=1024,
