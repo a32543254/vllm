@@ -79,11 +79,12 @@ class SynapseLLMPlatform(Platform):
         # check and update model config
         model_config = vllm_config.model_config
         # TODO check model dtype
-        # if model_config.dtype == torch.float8_e5m2:
-        #     logger.warning(
-        #         f"Only float32 dtype is supported on SynapseLLM, casting from {model_config.dtype}."  # noqa: G004, E501
-        #     )
-        #     model_config.dtype = torch.float32
+        if model_config.dtype not in [torch.float32, torch.bfloat16]:
+            logger.warning(
+                f"Only float32 or bfloat16 dtypes are supported on SynapseLLM, "
+                f"casting from {model_config.dtype}."  # noqa: G004, E501
+            )
+            model_config.dtype = torch.float32
         if model_config.enforce_eager:
             logger.warning(
                 "eager_mode is not supported on SynapseLLM backend, fallback to "
@@ -97,5 +98,6 @@ class SynapseLLMPlatform(Platform):
             # static kv cache inside SynapseLLM
             vllm_config.cache_config.block_size = \
                 vllm_config.model_config.max_model_len
+            # will be decided by model_config.dtype
             if cache_config.cache_dtype is None:
                 cache_config.cache_dtype = "auto"

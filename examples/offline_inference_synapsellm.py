@@ -34,6 +34,7 @@ sampling_params = SamplingParams(temperature=0, top_p=0.95, max_tokens=32)
 # Create an LLM.
 llm = LLM(
     model="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    dtype="bfloat16",
     max_num_seqs=6,
     # the max_num_batched_tokens will determine the chunk_size for prefill
     # which is max_num_batched_tokens // max_num_seqs

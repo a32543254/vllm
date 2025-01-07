@@ -19,6 +19,13 @@ from vllm.platforms import current_platform
 
 logger = init_logger(__name__)
 
+TORCH_DTYPE_TO_SYNAPSELLM_AMP = {
+    "auto": "fp32",
+    torch.float16: "f16",
+    torch.bfloat16: "bf16",
+    torch.float32: "fp32",
+}
+
 _SYNAPSE_SUPPORTED_MODELS: List [str] = [
     "LlamaForCausalLM",
     "GPTJForCausalLM",
@@ -51,14 +58,16 @@ def _get_model_quant_config():
 
 def _get_cache_config(cache_config: CacheConfig, scheduler_config: SchedulerConfig):
     cache_kwargs = {}
-    cache_kwargs["memory_dtype"] = cache_config.cache_dtype
     cache_kwargs["n_ctx"] = scheduler_config.max_model_len
     cache_kwargs["n_stream"] = scheduler_config.max_num_seqs
 
     return cache_kwargs
 
-def _get_execute_config(scheduler_config: SchedulerConfig):
+def _get_execute_config(model_config: ModelConfig, scheduler_config: SchedulerConfig):
     execute_kwargs = {}
+    execute_kwargs["dtype"] = "fp32"
+    if model_config and model_config.dtype is not None:
+        execute_kwargs["dtype"] = TORCH_DTYPE_TO_SYNAPSELLM_AMP.get(model_config.dtype, "fp32")
     execute_kwargs["threads"] = int(envs.VLLM_SYNAPSELLM_NUM_THREADS)
     # chunk_size for prefilling
     execute_kwargs["n_chunk"] = \
@@ -182,12 +191,12 @@ def get_model(
         )
 
     # create model
-    synapsellm_model = SynapseLLMCausalLM(model_config, device_config) 
+    synapsellm_model = SynapseLLMCausalLM(model_config, device_config)
 
     # create config
     quant_kwargs = _get_model_quant_config()
     cache_kwargs = _get_cache_config(cache_config, scheduler_config)
-    execute_kwargs = _get_execute_config(scheduler_config)
+    execute_kwargs = _get_execute_config(model_config, scheduler_config)
 
     # init model
     synapsellm_model.init_model(**quant_kwargs, **cache_kwargs, **execute_kwargs)

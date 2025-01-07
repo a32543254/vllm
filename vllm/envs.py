@@ -521,7 +521,7 @@ environment_variables: Dict[str, Callable[[], Any]] = {
 
     # SynapseLLM num cpu threads usage
     "VLLM_SYNAPSELLM_NUM_THREADS":
-    lambda: os.getenv("VLLM_SYNAPSELLM_NUM_THREADS", 4),
+    lambda: int(os.getenv("VLLM_SYNAPSELLM_NUM_THREADS", 4)),
 
     # TODO move to quant config
     "VLLM_SYNAPSELLM_WEIGHT_DTYPE":

@@ -32,6 +32,7 @@ export VLLM_SYNAPSELLM_DEVICE="HPU"
 export VLLM_SYNAPSELLM_NUM_THREADS=32
 
 MODEL_NAME="Qwen/Qwen2.5-1.5B-Instruct"
+MODEL_DTYPE="bfloat16"
 
 # benchmark config
 MAX_INPUT_LENGTH=512
@@ -52,6 +53,7 @@ SERVER_PORT=8000
 # launch synapsellm server
 vllm serve ${MODEL_NAME} \
     --port ${SERVER_PORT} \
+    --dtype ${MODEL_DTYPE} \
     --max-num-seqs ${MAX_NUM_STREAMS} \
     --max-num-batched-tokens ${MAX_NUM_BATCHED_TOKENS} \
     --max-model-len ${MAX_CONTEXT_LENGTH} \
