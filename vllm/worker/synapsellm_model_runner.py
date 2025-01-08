@@ -1,3 +1,5 @@
+import os
+import itertools
 from dataclasses import dataclass
 from importlib.util import find_spec
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union, Callable
@@ -36,6 +38,7 @@ class ModelInputForSynapseLLM(ModelRunnerInputBase):
     multi_modal_kwargs: Optional[BatchedTensorInputs] = None
     is_prompt: Optional[str] = True
     kv_cache_block_ids_freed: Optional[torch.Tensor] = None
+    logits_all: Optional[bool] = False
     async_callback: Optional[Callable] = None
 
     def as_broadcastable_tensor_dict(
@@ -262,6 +265,26 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
             self.pin_memory,
             generators=self.get_generators(finished_requests_ids))
 
+        # FIXME: We need to adjust selected_token_indices to accommodate
+        # for padding
+        logits_all = False
+        if is_prompt:
+            max_len = input_tokens.size(1)
+            paddings = [max_len - s for s in seq_lens]
+            paddings = [0] + paddings[:-1]
+            paddings = list(itertools.accumulate(paddings))
+            paddings_prompt_logprobs = []
+            for i, seq_group_metadata in enumerate(seq_group_metadata_list):
+                if seq_group_metadata.sampling_params.prompt_logprobs is not None \
+                                and seq_group_metadata.is_prompt:
+                    paddings_prompt_logprobs += ([paddings[i]] * seq_lens[i])
+                    logits_all = True
+            paddings = torch.tensor(
+                paddings_prompt_logprobs if paddings_prompt_logprobs else paddings,
+                dtype=sampling_metadata.selected_token_indices.dtype,
+                device=sampling_metadata.selected_token_indices.device)
+            sampling_metadata.selected_token_indices.add_(paddings)
+
         return ModelInputForSynapseLLM(
                                     input_tokens=input_tokens,
                                     input_positions=input_positions,
@@ -272,6 +295,7 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
                                     multi_modal_kwargs=multi_modal_kwargs,
                                     is_prompt=is_prompt,
                                     kv_cache_block_ids_freed=kv_cache_block_ids_freed,
+                                    logits_all=logits_all,
                                 )
 
     def _reset_block_ids_kv_cache(self, block_ids: torch.Tensor) -> None:
@@ -307,6 +331,16 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
 
         # SynapseLLM does not support emit hidden_states directly
         logits = self.model(**execute_model_kwargs)
+        # default: [bs, vocab_size] (last one token before padding tokens)
+        # logits_all: [bs*max_seq_len, vocab_size] (contains both real and padding tokens)
+        logits = logits.view(-1, logits.shape[-1])
+
+        if model_input.logits_all:
+            if int(os.environ.get("NS_LOGITS_ALL", "0")) <= 0:
+                logger.fatal(f"Return prompt_logprobs needing set env var `NS_LOGITS_ALL=1` with "
+                             f"SynapseLLM backend. We will fix it in later release.")
+            selected_token_indices = model_input.sampling_metadata.selected_token_indices
+            logits = logits.index_select(0, selected_token_indices)
 
         # update occupied_kv_cache_block_ids
         if model_input.is_prompt:
