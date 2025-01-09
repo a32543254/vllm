@@ -108,6 +108,10 @@ bash server_synapsellm.sh
 
 Please install `lm_eval` first by following the [related document](https://github.com/EleutherAI/lm-evaluation-harness?tab=readme-ov-file#install).
 
+> Note:
+> 1. `lm_eval` offically supports vLLM CUDA backend. However, we can use it to test the accuracy of SynapseLLM backend without specifying the `device` arg.
+> 2. Please run `pip install ray` if you meet `NameError: name 'LLM' is not defined.`. It's a workaround of this [issue](https://github.com/EleutherAI/lm-evaluation-harness/blob/main/lm_eval/models/vllm_causallms.py#L27).
+
 Using the below command to test accuracy of Habana Gaudi-2 devices.
 
 ```bash
