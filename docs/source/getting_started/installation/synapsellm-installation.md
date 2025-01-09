@@ -17,6 +17,7 @@ Limitations (unspported features):
 - [Build from source](#build-synapsellm-backend-from-source)
 - [Related runtime environment variables](#env-intro)
 - [Performance tips](#synapsellm-backend-performance-tips)
+- [LM_eval accuracy](#synapsellm-backend-accuracy-validation)
 
 
 (synapsellm-backend-requirements)=
@@ -99,3 +100,16 @@ bash server_synapsellm.sh
 
 
 ### HPU performance tips
+
+
+(synapsellm-backend-accuracy-validation)=
+
+## LM_eval accuracy
+
+Please install `lm_eval` first by following the [related document](https://github.com/EleutherAI/lm-evaluation-harness?tab=readme-ov-file#install).
+
+Using the below command to test accuracy of Habana Gaudi-2 devices.
+
+```bash
+VLLM_SYNAPSELLM_NUM_THREADS=32 VLLM_SYNAPSELLM_DEVICE=HPU lm_eval --model vllm --model_args pretrained="Qwen/Qwen2.5-1.5B-Instruct",tensor_parallel_size=1,dtype=bfloat16,max_model_len=4096,max_num_seqs=10,max_num_batched_tokens=10240 --tasks lambada_openai --batch_size 8
+```
