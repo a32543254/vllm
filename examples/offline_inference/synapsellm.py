@@ -14,9 +14,12 @@ VLLM_SYNAPSELLM_NUM_THREADS=32 python ../benchmarks/benchmark_throughput.py \
 """
 
 import os
+import time
 
 from vllm import LLM, SamplingParams
 
+# enable torch profiler, can also be set on cmd line
+os.environ["VLLM_TORCH_PROFILER_DIR"] = "./vllm_profile"
 # CPU or HPU
 os.environ["VLLM_SYNAPSELLM_DEVICE"] = "HPU"
 os.environ['VLLM_SYNAPSELLM_NUM_THREADS'] = "32"
@@ -50,11 +53,17 @@ llm = LLM(
     device="synapsellm",
     tensor_parallel_size=1,
 )
+llm.start_profile()
 # Generate texts from the prompts. The output is a list of RequestOutput objects
 # that contain the prompt, generated text, and other information.
 outputs = llm.generate(prompts, sampling_params)
+llm.stop_profile()
 # Print the outputs.
 for output in outputs:
     prompt = output.prompt
     generated_text = output.outputs[0].text
     print(f"Prompt: {prompt!r}, Generated text: {generated_text!r}")
+
+# Add a buffer to wait for profiler in the background process
+# (in case MP is on) to finish writing profiling output.
+time.sleep(10)
