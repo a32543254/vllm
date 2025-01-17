@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 
 logger = init_logger(__name__)
 
+_SAMPLING_EPS = 1e-5
 
 @dataclass(frozen=True)
 class ModelInputForSynapseLLM(ModelRunnerInputBase):
@@ -78,6 +79,31 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
         # Lazy initialization.
         self.model: nn.Module  # initialize after load_model.
 
+        # Once SYNAPSELLM_ON_DEVICE_SAMPLING_DISABLED is set to a non-zero value,
+        # turn off on-device sampling.
+        # TODO turn it on by default
+        self._on_device_sampling_disabled = int(
+            os.getenv("SYNAPSELLM_ON_DEVICE_SAMPLING_DISABLED", "1")) > 0
+
+        # SynapseLLM needs to update sampling parameters when request IDs change
+        # across batches. This variable stores the previous batch's request IDs
+        # to determine if an update is needed.
+        self._previous_batch_request_ids: List[str] = []
+
+        self.on_device_sampling_params = None
+        if not self._on_device_sampling_disabled:
+            logger.warning(
+                "On-device sampling is turned on in SynapseLLM by default, only "
+                "top_k, and temperature are current supported sampling "
+                "parameters. To turn off the on-device sampling, please set "
+                "the environment variable SYNAPSELLM_ON_DEVICE_SAMPLING_DISABLED=1."
+            )
+            self.on_device_sampling_params = {"max_new_tokens": 1,
+                                              "top_k": 1,
+                                              "temperature": 1.0,
+                                              "ignore_eos": False,
+                                              }
+
     def load_model(self) -> None:
         if find_spec("neural_speed") is not None:
             self.model = get_model(
@@ -85,6 +111,7 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
                 self.scheduler_config,
                 self.cache_config,
                 self.device_config,
+                on_device_sampling_disabled=self._on_device_sampling_disabled,
             )
         else:
             raise NotImplementedError(
@@ -285,6 +312,18 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
                 device=sampling_metadata.selected_token_indices.device)
             sampling_metadata.selected_token_indices.add_(paddings)
 
+        if not self._on_device_sampling_disabled:
+            # Once the request IDs are changed in current iteration, we will
+            # update the on-device sampling parameters.
+            current_batch_request_ids = [
+                seq_group_meta_data.request_id
+                for seq_group_meta_data in seq_group_metadata_list
+            ]
+
+            if current_batch_request_ids != self._previous_batch_request_ids:
+                self._update_synapsellm_sampling_params(sampling_metadata)
+                self._previous_batch_request_ids = current_batch_request_ids
+
         return ModelInputForSynapseLLM(
                                     input_tokens=input_tokens,
                                     input_positions=input_positions,
@@ -301,6 +340,44 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
     def _reset_block_ids_kv_cache(self, block_ids: torch.Tensor) -> None:
         if self.model is not None:
             self.model.free_block_ids_kv_cache(block_ids)
+
+    def _get_valid_positive_top_k(self, top_k: int) -> int:
+        if top_k < 0:
+            return self.model_config.get_vocab_size()
+        return top_k
+
+    def _maybe_convert_to_synapsellm_greedy_sampling(self, temp, top_k):
+        # Zero temperature means greedy sampling in vllm
+        # convert to SynapseLLM sampling params
+        if temp < _SAMPLING_EPS:
+            return (1.0, 1)
+        else:
+            return (temp, self._get_valid_positive_top_k(top_k))
+
+    def _update_synapsellm_sampling_params(self, sampling_metadata: SamplingMetadata):
+        # Update SynapseLLM sampling parameters
+        assert self.on_device_sampling_params is not None, (
+            f"Failed to update sampling_params, "
+            f"current sampling params is {self.on_device_sampling_params}")
+        top_k: List[int] = []
+        top_p: List[float] = []
+        temperature: List[float] = []
+        ignore_eos: List[bool] = []
+        for index, sequence_group_to_sample in enumerate(
+                sampling_metadata.seq_groups):
+            top_p.append(sequence_group_to_sample.sampling_params.top_p)
+            assert top_p[-1] == 1.0, "Unsupport top_p sampling in SynapseLLM"
+            cur_temp = sequence_group_to_sample.sampling_params.temperature
+            cur_top_k = sequence_group_to_sample.sampling_params.top_k
+            valid_temp, valid_top_k = self._maybe_convert_to_synapsellm_greedy_sampling(cur_temp,
+                                                                                        cur_top_k)
+            temperature.append(valid_temp)
+            top_k.append(valid_top_k)
+            ignore_eos.append(sequence_group_to_sample.sampling_params.ignore_eos)
+
+        self.on_device_sampling_params["top_k"] = top_k
+        self.on_device_sampling_params["temperature"] = temperature
+        self.on_device_sampling_params["ignore_eos"] = ignore_eos
 
     @torch.inference_mode()
     def execute_model(
@@ -327,9 +404,12 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
             **MultiModalKwargs.as_kwargs(model_input.multi_modal_kwargs or {},
                                          device=self.device),
         }
+        if not self._on_device_sampling_disabled:
+            execute_model_kwargs["generate_config"] = self.on_device_sampling_params
         logger.debug(f"SynapseLLM input_block_ids: {model_input.input_block_ids}")
 
         # SynapseLLM does not support emit hidden_states directly
+        # HPU -> CPU Sync
         logits = self.model(**execute_model_kwargs)
         # default: [bs, vocab_size] (last one token before padding tokens)
         # logits_all: [bs*max_seq_len, vocab_size] (contains both real and padding tokens)
@@ -339,6 +419,8 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
             if int(os.environ.get("NS_LOGITS_ALL", "0")) <= 0:
                 logger.fatal(f"Return prompt_logprobs needing set env var `NS_LOGITS_ALL=1` with "
                              f"SynapseLLM backend. We will fix it in later release.")
+            if not self._on_device_sampling_disabled:
+                logger.fatal(f"Return prompt_logprobs can not use device sampling.")
             selected_token_indices = model_input.sampling_metadata.selected_token_indices
             logits = logits.index_select(0, selected_token_indices)
 

@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 import torch
 from torch import nn
@@ -14,6 +14,8 @@ from vllm.config import (ModelConfig,
 from vllm.logger import init_logger
 from vllm.model_executor.layers.logits_processor import LogitsProcessor
 from vllm.model_executor.layers.sampler import Sampler, SamplerOutput
+from vllm.sequence import (CompletionSequenceGroupOutput, Logprob,
+                           SequenceOutput)
 from vllm.model_executor.sampling_metadata import SamplingMetadata
 from vllm.platforms import current_platform
 
@@ -81,13 +83,17 @@ class SynapseLLMCausalLM(nn.Module):
         self,
         model_config: ModelConfig,
         device_config: DeviceConfig,
+        on_device_sampling_disabled: bool = False
     ) -> None:
         super().__init__()
         _valid_model_architecture(model_config.hf_config)
 
         self.logits_processor = LogitsProcessor(
             model_config.hf_config.vocab_size, logits_as_input=True)
-        self.sampler = Sampler()
+        self.on_device_sampling_disabled = on_device_sampling_disabled
+        if self.on_device_sampling_disabled:
+            # Use default sampler
+            self.sampler = Sampler()
 
         # args for SynapseLLM model creation
         assert device_config.device_type == "synapsellm"
@@ -115,13 +121,32 @@ class SynapseLLMCausalLM(nn.Module):
         token_type_ids: torch.Tensor = None,
         attention_mask: torch.Tensor = None,
         input_block_ids: torch.Tensor = None,
+        generate_config: Dict = None,
     ) -> torch.Tensor:
 
-        logits = self.model(input_ids=input_ids,
-                            token_type_ids=token_type_ids,
-                            attention_mask=attention_mask,
-                            stream_ids=input_block_ids)
+        if self.on_device_sampling_disabled:
+            logits = self.model(input_ids=input_ids,
+                                token_type_ids=token_type_ids,
+                                attention_mask=attention_mask,
+                                stream_ids=input_block_ids,
+                                )
+        else:
+            max_new_tokens = generate_config.get("max_new_tokens", 1)
+            top_k = generate_config.get("top_k", 1)
+            temperature = generate_config.get("temperature", 1.0)
+            ignore_eos = generate_config.get("ignore_eos", False)
+            # import pdb; pdb.set_trace()
+            logits = self.model.generateV2(input_ids=input_ids,
+                                           token_type_ids=token_type_ids,
+                                           attention_mask=attention_mask,
+                                           stream_ids=input_block_ids,
+                                           max_new_tokens=max_new_tokens,
+                                           top_k=top_k,
+                                           temperature=temperature,
+                                           ignore_eos=ignore_eos,
+                                           )
 
+            # logger.info(f"next_token: {logits}")
         return logits
 
     # kv cache operations
@@ -137,8 +162,8 @@ class SynapseLLMCausalLM(nn.Module):
         self._occupied_kv_cache_block_ids.remove(block_id)
 
     def free_block_ids_kv_cache(self, block_ids: List[int]) -> None:
-        logger.debug(f"SynapseLLM starts to free block_ids {block_ids} kv cache")
-        self.model.free_streams(block_ids)
+        for blk_id in block_ids:
+            self.free_block_id_kv_cache(blk_id)
 
     def update_occupied_kv_cache_block_ids(self) -> None:
         cur_used_kv_cache_block_ids = self.get_cur_used_kv_cache_block_ids()
@@ -160,8 +185,28 @@ class SynapseLLMCausalLM(nn.Module):
         logits: torch.Tensor,
         sampling_metadata: SamplingMetadata,
     ) -> Optional[SamplerOutput]:
-        next_tokens = self.sampler(logits, sampling_metadata)
-        return next_tokens
+        if self.on_device_sampling_disabled:
+            next_tokens = self.sampler(logits, sampling_metadata)
+            return next_tokens
+        else:
+            # On-device sampling outputs the token ids directly.
+            sampled_token_ids = logits.flatten()
+            next_tokens = []
+            sample_idx = 0
+            for seq_group in sampling_metadata.seq_groups:
+                samples = []
+                for seq_id in seq_group.seq_ids:
+                    token_id = sampled_token_ids[sample_idx].item()
+                    samples.append(
+                        SequenceOutput(parent_seq_id=seq_id,
+                                       output_token=token_id,
+                                       logprobs={token_id: Logprob(token_id)}))
+                    sample_idx += 1
+                next_tokens.append(
+                    CompletionSequenceGroupOutput(samples=samples,
+                                                  prompt_logprobs=None))
+
+            return SamplerOutput(outputs=next_tokens)
 
 
 def get_model(
@@ -190,8 +235,12 @@ def get_model(
             "but it is enabled."
         )
 
+    on_device_sampling_disabled = kwargs.get("on_device_sampling_disabled", False)
     # create model
-    synapsellm_model = SynapseLLMCausalLM(model_config, device_config)
+    synapsellm_model = SynapseLLMCausalLM(model_config,
+                                          device_config,
+                                          on_device_sampling_disabled=on_device_sampling_disabled,
+                                          )
 
     # create config
     quant_kwargs = _get_model_quant_config()
