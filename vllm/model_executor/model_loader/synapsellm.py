@@ -135,7 +135,6 @@ class SynapseLLMCausalLM(nn.Module):
             top_k = generate_config.get("top_k", 1)
             temperature = generate_config.get("temperature", 1.0)
             ignore_eos = generate_config.get("ignore_eos", False)
-            # import pdb; pdb.set_trace()
             logits = self.model.generateV2(input_ids=input_ids,
                                            token_type_ids=token_type_ids,
                                            attention_mask=attention_mask,
@@ -146,7 +145,6 @@ class SynapseLLMCausalLM(nn.Module):
                                            ignore_eos=ignore_eos,
                                            )
 
-            # logger.info(f"next_token: {logits}")
         return logits
 
     # kv cache operations

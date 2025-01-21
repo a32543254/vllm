@@ -81,9 +81,8 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
 
         # Once SYNAPSELLM_ON_DEVICE_SAMPLING_DISABLED is set to a non-zero value,
         # turn off on-device sampling.
-        # TODO turn it on by default
         self._on_device_sampling_disabled = int(
-            os.getenv("SYNAPSELLM_ON_DEVICE_SAMPLING_DISABLED", "1")) > 0
+            os.getenv("SYNAPSELLM_ON_DEVICE_SAMPLING_DISABLED", "0")) > 0
 
         # SynapseLLM needs to update sampling parameters when request IDs change
         # across batches. This variable stores the previous batch's request IDs
@@ -233,11 +232,15 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
                 assert len(block_table) == 1
                 input_block_ids.append(block_table[0])
 
-        input_tokens = make_tensor_with_pad(input_tokens,
-                                            pad=0,
-                                            max_len=1,
-                                            dtype=torch.long,
-                                            device=self.device)
+        if self._on_device_sampling_disabled:
+            input_tokens = make_tensor_with_pad(input_tokens,
+                                                pad=0,
+                                                max_len=1,
+                                                dtype=torch.long,
+                                                device=self.device)
+        else:
+            # synapsellm sampling will hanld next_tokens by itself
+            input_tokens = None
         input_positions = make_tensor_with_pad(input_positions,
                                                pad=0,
                                                max_len=1,
