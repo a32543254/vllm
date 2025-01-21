@@ -88,8 +88,7 @@ class SynapseLLMCausalLM(nn.Module):
         super().__init__()
         _valid_model_architecture(model_config.hf_config)
 
-        self.logits_processor = LogitsProcessor(
-            model_config.hf_config.vocab_size, logits_as_input=True)
+        self.logits_processor = None
         self.on_device_sampling_disabled = on_device_sampling_disabled
         if self.on_device_sampling_disabled:
             # Use default sampler
@@ -175,8 +174,7 @@ class SynapseLLMCausalLM(nn.Module):
 
     def compute_logits(self, hidden_states: torch.Tensor,
                        sampling_metadata: SamplingMetadata) -> torch.Tensor:
-        logits = self.logits_processor(None, hidden_states, sampling_metadata)
-        return logits
+        raise NotImplementedError
 
     def sample(
         self,

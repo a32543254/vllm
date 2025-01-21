@@ -8,6 +8,7 @@ import torch
 from torch import nn
 
 from vllm.config import VllmConfig
+from vllm.forward_context import set_forward_context
 from vllm.logger import init_logger
 from vllm.model_executor import SamplingMetadata
 from vllm.model_executor.layers.sampler import SamplerOutput
@@ -115,6 +116,9 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
         else:
             raise NotImplementedError(
                 "Supports only Neural-Speed based models.")
+
+    def get_model(self) -> nn.Module:
+        return self.model
 
     def _prepare_prompt(
         self,
@@ -413,7 +417,8 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
 
         # SynapseLLM does not support emit hidden_states directly
         # HPU -> CPU Sync
-        logits = self.model(**execute_model_kwargs)
+        with set_forward_context(None, self.vllm_config, 0):
+            logits = self.model(**execute_model_kwargs)
         # default: [bs, vocab_size] (last one token before padding tokens)
         # logits_all: [bs*max_seq_len, vocab_size] (contains both real and padding tokens)
         logits = logits.view(-1, logits.shape[-1])

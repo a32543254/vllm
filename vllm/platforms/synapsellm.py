@@ -27,12 +27,6 @@ class SynapseLLMPlatform(Platform):
     dispatch_key: str = "CPU"
 
     @classmethod
-    def get_default_attn_backend(cls, selected_backend: _Backend) -> _Backend:
-        if selected_backend != _Backend.SYNAPSELLM:
-            logger.info("Cannot use %s backend on SynapseLLM.", selected_backend)
-        return _Backend.SYNAPSELLM
-
-    @classmethod
     def get_device_name(cls, device_id: int = 0) -> str:
         return "synapsellm"
 
@@ -40,10 +34,6 @@ class SynapseLLMPlatform(Platform):
     @classmethod
     def is_async_output_supported(cls, enforce_eager: Optional[bool]) -> bool:
         return False
-
-    @classmethod
-    def inference_mode(cls):
-        return torch.inference_mode(mode=True)
 
     @classmethod
     def is_synapsellm_cpu(cls) -> bool:
@@ -75,6 +65,17 @@ class SynapseLLMPlatform(Platform):
         if parallel_config.worker_cls == "auto":
             parallel_config.worker_cls = \
                 "vllm.worker.synapsellm_worker.SynapseLLMWorker"
+
+        if parallel_config.world_size > 1:
+            parallel_config.distributed_executor_backend = "uni"
+
+        assert (vllm_config.lora_config is
+                None), "LoRA is not supported for SynapseLLM backend."
+        assert (not vllm_config.speculative_config
+                ), "Speculative decoding not yet supported for SynapseLLM backend."
+        assert cls.is_synapsellm_cpu() or \
+               cls.is_synapsellm_hpu(), \
+            "SynapseLLM backend only supports CPU and HPU devices for now."
 
         # check and update model config
         model_config = vllm_config.model_config

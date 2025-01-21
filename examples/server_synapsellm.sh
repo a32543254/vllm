@@ -30,6 +30,8 @@ export http_proxy=""
 
 export VLLM_SYNAPSELLM_DEVICE="HPU"
 export VLLM_SYNAPSELLM_NUM_THREADS=32
+# turn off synapsellm sampling
+# export SYNAPSELLM_ON_DEVICE_SAMPLING_DISABLED=1
 
 MODEL_NAME="Qwen/Qwen2.5-1.5B-Instruct"
 MODEL_DTYPE="bfloat16"
@@ -70,7 +72,8 @@ output1=$(curl -X POST -s http://localhost:${SERVER_PORT}/v1/chat/completions \
 "model": "${MODEL_NAME}",
 "messages": [{"role": "user", "content": "Tell me something about Intel"}],
 "max_completion_tokens": 128,
-"temperature": 0
+"temperature": 0,
+"ignore_eos": true
 }
 EOF
 )
@@ -82,8 +85,8 @@ output2=$(curl -X POST -s http://localhost:${SERVER_PORT}/v1/chat/completions \
 "model": "${MODEL_NAME}",
 "messages": [{"role": "user", "content": "什么是量子力学？"}],
 "max_completion_tokens": 128,
-"temperature": 0.05,
-"top_p": 0.95
+"temperature": 0,
+"ignore_eos": true
 }
 EOF
 )
@@ -91,7 +94,7 @@ EOF
 echo ""
 echo "Output of first request: $output1"
 echo ""
-echo "Output of first request: $output2"
+echo "Output of second request: $output2"
 
 
 echo ""
@@ -114,7 +117,8 @@ python3 ../benchmarks/benchmark_serving.py \
           --save-result \
           --result-dir "synapsellm_benchmark_serving" \
           --result-filename "synapsellm-qps-${QPS}.json" \
-          --request-rate ${QPS}
+          --request-rate ${QPS} \
+          --ignore-eos
 
 echo ""
 echo "Finish benchmarking synapsellm serving..."
