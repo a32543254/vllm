@@ -6,6 +6,7 @@ import random
 import time
 from functools import cache
 from typing import Dict, List, Optional, Tuple
+import os
 
 import torch
 import uvloop
@@ -167,6 +168,7 @@ def run_vllm(
     engine_args: EngineArgs,
 ) -> float:
     from vllm import LLM, SamplingParams
+    # os.environ["VLLM_TORCH_PROFILER_DIR"] = "./vllm_profile_throughput"
     llm = LLM(**dataclasses.asdict(engine_args))
 
     # Add the requests to the engine.
@@ -179,7 +181,7 @@ def run_vllm(
         sampling_params.append(
             SamplingParams(
                 n=n,
-                temperature=1.0,
+                temperature=0.0,
                 top_p=1.0,
                 ignore_eos=True,
                 max_tokens=request.expected_output_len,
@@ -192,11 +194,15 @@ def run_vllm(
 
     if not use_beam_search:
         start = time.perf_counter()
+        # llm.start_profile()
+        # import pdb; pdb.set_trace()
         llm.generate(prompts,
                      sampling_params,
                      lora_request=lora_requests,
                      use_tqdm=True)
+        # llm.stop_profile()
         end = time.perf_counter()
+        # time.sleep(10)
     else:
         assert lora_requests is None, "BeamSearch API does not support LoRA"
         prompts = [request.prompt for request in requests]
