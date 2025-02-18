@@ -116,7 +116,8 @@ class Platform:
         return self._enum == PlatformEnum.TPU
 
     def is_hpu(self) -> bool:
-        return self._enum == PlatformEnum.HPU
+        return False
+        #return self._enum == PlatformEnum.HPU
 
     def is_xpu(self) -> bool:
         return self._enum == PlatformEnum.XPU

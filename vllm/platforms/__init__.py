@@ -70,10 +70,12 @@ def rocm_platform_plugin() -> Optional[str]:
 
 
 def hpu_platform_plugin() -> Optional[str]:
+    return None
     is_hpu = False
     try:
         from importlib import util
         is_hpu = util.find_spec('habana_frameworks') is not None
+        #is_hpu = util.find_spec('habana_frameworks') is not None
     except Exception:
         pass
 
