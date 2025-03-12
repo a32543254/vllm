@@ -136,6 +136,21 @@ class SynapseLLMWorker(LoraNotSupportedWorkerBase, LocalOrDistributedWorkerBase)
         self.cache_config.num_gpu_blocks = num_device_blocks
         self.cache_config.num_cpu_blocks = num_swap_blocks
 
+    # TODO
+    def _init_cache_engine(self):
+        assert self.cache_config.num_gpu_blocks is not None
+        # self.cache_engine = [
+        #     HPUCacheEngine(self.cache_config, self.model_config,
+        #                    self.parallel_config, self.device_config)
+        #     for _ in range(self.parallel_config.pipeline_parallel_size)
+        # ]
+        # self.hpu_cache = [
+        #     self.cache_engine[ve].gpu_cache
+        #     for ve in range(self.parallel_config.pipeline_parallel_size)
+        # ]
+        # bind_kv_cache(self.compilation_config.static_forward_context,
+        #               self.hpu_cache)
+        
     @property
     def do_metadata_broadcast(self) -> bool:
         return False
