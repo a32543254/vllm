@@ -196,13 +196,10 @@ def run_vllm(
         start = time.perf_counter()
         # llm.start_profile()
         # import pdb; pdb.set_trace()
-        # make decoding batch tight
-        new_sampling_params, new_prompts = zip(*sorted(zip(sampling_params, prompts),
-                                            key=lambda k: k[0].max_tokens, reverse=True))
-        llm.generate(list(new_prompts),
-                     list(new_sampling_params),
-                     lora_request=lora_requests,
-                     use_tqdm=True)
+        llm.generate(prompts,
+                      sampling_params,
+                      lora_request=lora_requests,
+                      use_tqdm=True)
         # llm.stop_profile()
         end = time.perf_counter()
         # time.sleep(10)
