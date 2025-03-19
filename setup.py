@@ -336,6 +336,8 @@ def _is_hpu() -> bool:
     # if VLLM_TARGET_DEVICE was not set explicitly, check if hl-smi succeeds,
     # and if it doesn't, check if habanalabs driver is loaded
     is_hpu_available = False
+    
+    return is_hpu_available
     try:
         out = subprocess.run(["hl-smi"], capture_output=True, check=True)
         is_hpu_available = out.returncode == 0

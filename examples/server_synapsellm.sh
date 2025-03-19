@@ -33,7 +33,9 @@ export VLLM_SYNAPSELLM_NUM_THREADS=32
 # turn off synapsellm sampling
 # export SYNAPSELLM_ON_DEVICE_SAMPLING_DISABLED=1
 
-MODEL_NAME="Qwen/Qwen2.5-1.5B-Instruct"
+MODEL_NAME="meta-llama/Llama-3.1-8B-Instruct"
+#MODEL_NAME="meta-llama/Llama-3.1-8B"
+#MODEL_NAME="Qwen/Qwen2.5-1.5B-Instruct"
 MODEL_DTYPE="bfloat16"
 
 # benchmark config
@@ -125,5 +127,5 @@ echo "Finish benchmarking synapsellm serving..."
 
 
 # clean up
-pgrep python | xargs kill -9
-pkill -f python
+#pgrep python | xargs kill -9
+#pkill -f python
