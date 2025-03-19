@@ -95,10 +95,11 @@ class SynapseLLMPlatform(Platform):
         # check and update cache config
         cache_config = vllm_config.cache_config
         if cache_config:
-            # SynapseLLM needs block_size = max_model_len
-            # static kv cache inside SynapseLLM
-            vllm_config.cache_config.block_size = \
-                vllm_config.model_config.max_model_len
+            if cache_config.block_size is None:
+                # SynapseLLM needs block_size = max_model_len
+                # static kv cache inside SynapseLLM
+                vllm_config.cache_config.block_size = vllm_config.model_config.max_model_len
+
             # will be decided by model_config.dtype
             if cache_config.cache_dtype is None:
                 cache_config.cache_dtype = "auto"

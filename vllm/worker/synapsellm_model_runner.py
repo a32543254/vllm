@@ -157,8 +157,14 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
 
             assert seq_group_metadata.block_tables is not None
             block_table = seq_group_metadata.block_tables[seq_id]
-            assert len(block_table) == 1
-            input_block_ids.append(block_table[0])
+
+
+            #assert len(block_table) == 1
+            #input_block_ids.append(block_table[0])
+            # only for one seq
+            input_block_ids = block_table
+
+            # TODO: support two seqs. input_block_ids.append(block_table)
             if block_table[0] in occupied_block_ids:
                 kv_cache_block_ids_freed.append(block_table[0])
 
@@ -173,6 +179,7 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
                     )
 
                 multi_modal_kwargs_list.append(mm_kwargs)
+
 
         max_seq_len = max(seq_lens)
         assert max_seq_len > 0
