@@ -215,7 +215,9 @@ class SelfAttnBlockSpaceManager(BlockSpaceManager):
         for known tokens. The contents of the lookahead slots are not defined.
         This is used by speculative decoding when speculating future tokens.
         """
+        return True
 
+        '''
         num_touched_blocks = 0
         for seq in seq_group.get_seqs(status=SequenceStatus.RUNNING):
             block_table = self.block_tables[seq.seq_id]
@@ -230,6 +232,7 @@ class SelfAttnBlockSpaceManager(BlockSpaceManager):
         num_free_gpu_blocks = self.block_allocator.get_num_free_blocks(
             Device.GPU)
         return num_touched_blocks <= num_free_gpu_blocks
+        '''
 
     def append_slots(
         self,
