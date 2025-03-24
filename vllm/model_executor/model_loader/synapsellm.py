@@ -120,6 +120,9 @@ class SynapseLLMCausalLM(nn.Module):
         token_type_ids: torch.Tensor = None,
         attention_mask: torch.Tensor = None,
         input_block_ids: torch.Tensor = None,
+        block_table: torch.Tensor = None,
+        block_index: torch.Tensor = None,
+        block_offset: torch.Tensor = None,
         generate_config: Dict = None,
     ) -> torch.Tensor:
 
@@ -134,10 +137,15 @@ class SynapseLLMCausalLM(nn.Module):
             top_k = generate_config.get("top_k", 1)
             temperature = generate_config.get("temperature", 1.0)
             ignore_eos = generate_config.get("ignore_eos", False)
+
+            print(f'input_ids: {input_ids}, block_table: {block_table}, block_index: {block_index}, block_table:{block_offset}')
             logits = self.model.generateV2(input_ids=input_ids,
                                            token_type_ids=token_type_ids,
                                            attention_mask=attention_mask,
                                            stream_ids=input_block_ids,
+                                           block_table=block_table,
+                                           block_offset=block_offset,
+                                           block_index=block_index,
                                            max_new_tokens=max_new_tokens,
                                            top_k=top_k,
                                            temperature=temperature,

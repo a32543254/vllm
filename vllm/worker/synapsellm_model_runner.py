@@ -36,6 +36,9 @@ class ModelInputForSynapseLLM(ModelRunnerInputBase):
     token_type_ids: Optional[torch.Tensor] = None,
     attention_mask: Optional[torch.Tensor] = None,
     input_block_ids: Optional[torch.Tensor] = None,
+    block_table: Optional[torch.Tensor] = None,
+    block_index: Optional[torch.Tensor] = None,
+    block_offset: Optional[torch.Tensor] = None,
     sampling_metadata: Optional["SamplingMetadata"] = None
     multi_modal_kwargs: Optional[BatchedTensorInputs] = None
     is_prompt: Optional[str] = True
@@ -158,11 +161,9 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
             assert seq_group_metadata.block_tables is not None
             block_table = seq_group_metadata.block_tables[seq_id]
 
-
             #assert len(block_table) == 1
-            #input_block_ids.append(block_table[0])
             # only for one seq
-            input_block_ids = block_table
+            input_block_ids.append(seq_ids[0])
 
             # TODO: support two seqs. input_block_ids.append(block_table)
             if block_table[0] in occupied_block_ids:
@@ -202,12 +203,25 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
                                        dtype=torch.long,
                                        device=self.device)
 
+        block_table = torch.tensor(block_table,
+                                       dtype=torch.long,
+                                       device=self.device)
+
+        block_index = torch.tensor(block_table,
+                                       dtype=torch.long,
+                                       device=self.device)
+
+        block_offset = torch.tensor(block_table,
+                                       dtype=torch.long,
+                                       device=self.device)
+
+
         multi_modal_kwargs = MultiModalKwargs.batch(multi_modal_kwargs_list)
 
         if len(kv_cache_block_ids_freed) == 0:
             kv_cache_block_ids_freed = None
 
-        return (input_tokens, input_positions, token_type_ids, attention_mask, input_block_ids,
+        return (input_tokens, input_positions, token_type_ids, attention_mask, input_block_ids, block_table, block_index, block_offset,
                 seq_lens, multi_modal_kwargs, kv_cache_block_ids_freed)
 
     def _prepare_decode(
@@ -240,7 +254,7 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
 
                 assert seq_group_metadata.block_tables is not None
                 block_table = seq_group_metadata.block_tables[seq_id]
-                assert len(block_table) == 1
+                #assert len(block_table) == 1
                 input_block_ids.append(block_table[0])
 
         if self._on_device_sampling_disabled:
@@ -283,9 +297,10 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
         # all decodes.
         is_prompt = seq_group_metadata_list[0].is_prompt
         # Prepare input tensors.
+        #import pdb;pdb.set_trace()
         if is_prompt:
             (input_tokens, input_positions, token_type_ids, attention_mask,
-             input_block_ids, seq_lens, multi_modal_kwargs, kv_cache_block_ids_freed
+             input_block_ids, block_table, block_index, block_offset, seq_lens, multi_modal_kwargs, kv_cache_block_ids_freed
              ) = self._prepare_prompt(seq_group_metadata_list)
         else:
             (input_tokens, input_positions, token_type_ids, attention_mask,
@@ -294,6 +309,9 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
             seq_lens = None
             # decoding should not free kv cache
             kv_cache_block_ids_freed = None
+            block_table = None
+            block_index = None
+            block_offset = None
 
         sampling_metadata = SamplingMetadata.prepare(
             seq_group_metadata_list,
@@ -344,6 +362,9 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
                                     token_type_ids=token_type_ids,
                                     attention_mask=attention_mask,
                                     input_block_ids=input_block_ids,
+                                    block_table=block_table,
+                                    block_index=block_index,
+                                    block_offset=block_offset,
                                     sampling_metadata=sampling_metadata,
                                     multi_modal_kwargs=multi_modal_kwargs,
                                     is_prompt=is_prompt,
@@ -415,6 +436,9 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
             "token_type_ids": model_input.token_type_ids,
             "attention_mask": model_input.attention_mask,
             "input_block_ids": model_input.input_block_ids,
+            "block_table": model_input.block_table,
+            "block_index": model_input.block_index,
+            "block_offset": model_input.block_offset,
             **MultiModalKwargs.as_kwargs(model_input.multi_modal_kwargs or {},
                                          device=self.device),
         }
