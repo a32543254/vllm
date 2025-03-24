@@ -161,11 +161,25 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
             assert seq_group_metadata.block_tables is not None
             block_table = seq_group_metadata.block_tables[seq_id]
 
-            #assert len(block_table) == 1
-            # only for one seq
             input_block_ids.append(seq_ids[0])
 
-            # TODO: support two seqs. input_block_ids.append(block_table)
+            tokens = seq_data.get_token_ids()
+            tokens = tokens[0:seq_len]
+            token_positions = range(0, seq_len)
+
+            if block_table is not None:
+                _PAD_SLOT_ID = -1
+                block_size = self.cache_config.block_size
+                slot_mapping = [_PAD_SLOT_ID] * len(token_positions)
+                for i, pos in enumerate(token_positions):
+                    block_number = block_table[pos // block_size]
+                    block_offset = pos % block_size
+                    slot = block_number * block_size + block_offset
+                    slot_mapping[i] = slot
+
+            block_index = [pos // block_size for pos in slot_mapping]
+            block_offset = [slot % block_size for slot in slot_mapping]
+
             if block_table[0] in occupied_block_ids:
                 kv_cache_block_ids_freed.append(block_table[0])
 
@@ -207,11 +221,11 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
                                        dtype=torch.long,
                                        device=self.device)
 
-        block_index = torch.tensor(block_table,
+        block_index = torch.tensor(block_index,
                                        dtype=torch.long,
                                        device=self.device)
 
-        block_offset = torch.tensor(block_table,
+        block_offset = torch.tensor(block_offset,
                                        dtype=torch.long,
                                        device=self.device)
 

@@ -109,6 +109,7 @@ class SynapseLLMCausalLM(nn.Module):
                       )
 
         self._occupied_kv_cache_block_ids = set()
+        self.logits = []
 
     def init_model(self, **kwargs) -> None:
         logger.info(f"SynapseLLM model init: {kwargs}")
@@ -137,8 +138,7 @@ class SynapseLLMCausalLM(nn.Module):
             top_k = generate_config.get("top_k", 1)
             temperature = generate_config.get("temperature", 1.0)
             ignore_eos = generate_config.get("ignore_eos", False)
-
-            print(f'input_ids: {input_ids}, block_table: {block_table}, block_index: {block_index}, block_table:{block_offset}')
+            
             logits = self.model.generateV2(input_ids=input_ids,
                                            token_type_ids=token_type_ids,
                                            attention_mask=attention_mask,
@@ -146,12 +146,16 @@ class SynapseLLMCausalLM(nn.Module):
                                            block_table=block_table,
                                            block_offset=block_offset,
                                            block_index=block_index,
-                                           max_new_tokens=max_new_tokens,
+                                           max_new_tokens=1,
                                            top_k=top_k,
                                            temperature=temperature,
                                            ignore_eos=ignore_eos,
                                            )
 
+
+            value=logits[0].tolist()[0]
+            self.logits.append(value)
+            print("logits = ", self.logits)
         return logits
 
     # kv cache operations
