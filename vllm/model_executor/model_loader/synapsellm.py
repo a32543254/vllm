@@ -109,7 +109,7 @@ class SynapseLLMCausalLM(nn.Module):
                       )
 
         self._occupied_kv_cache_block_ids = set()
-        self.logits = []
+        #self.logits = []
 
     def init_model(self, **kwargs) -> None:
         logger.info(f"SynapseLLM model init: {kwargs}")
@@ -153,9 +153,9 @@ class SynapseLLMCausalLM(nn.Module):
                                            )
 
 
-            value=logits[0].tolist()[0]
-            self.logits.append(value)
-            print("logits = ", self.logits)
+            # value=logits[0].tolist()[0]
+            # self.logits.append(value)
+            # print("logits = ", self.logits)
         return logits
 
     # kv cache operations
