@@ -101,8 +101,10 @@ class BlockTable:
                                                      token_ids=token_ids,
                                                      device=device,
                                                      extra_hash=extra_hash)
+
         self.update(blocks)
         self._num_full_slots = len(token_ids)
+        print(f"len(token_ids) = {self._num_full_slots}, blocks: {len(blocks)}")
 
     def update(self, blocks: List[Block]) -> None:
         """Resets the table to the newly provided blocks 

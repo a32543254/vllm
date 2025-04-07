@@ -105,9 +105,9 @@ class ExecutorBase(ABC):
         """Initialize the KV cache by invoking the underlying worker.
         """
         # NOTE: This is logged in the executor because there can be >1 workers.
-        logger.info("# %s blocks: %d, # CPU blocks: %d",
+        logger.info("# %s blocks: %d, # CPU blocks: %d, # block_size: %d",
                     current_platform.dispatch_key, num_gpu_blocks,
-                    num_cpu_blocks)
+                    num_cpu_blocks, self.cache_config.block_size)
         max_concurrency = (num_gpu_blocks * self.cache_config.block_size /
                            self.model_config.max_model_len)
         logger.info("Maximum concurrency for %s tokens per request: %.2fx",

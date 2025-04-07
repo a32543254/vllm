@@ -17,6 +17,8 @@ from vllm.worker.worker_base import (LocalOrDistributedWorkerBase,
                                      LoraNotSupportedWorkerBase, WorkerBase,
                                      WorkerInput)
 
+from vllm.worker.cache_engine import CacheEngine
+
 logger = init_logger(__name__)
 
 
@@ -95,6 +97,7 @@ class SynapseLLMWorker(LoraNotSupportedWorkerBase, LocalOrDistributedWorkerBase)
     def load_model(self):
         self.model_runner.load_model()
 
+    # APC TODO: 
     def determine_num_available_blocks(self) -> Tuple[int, int]:
         """Determine the number of available KV blocks.
 
@@ -112,10 +115,15 @@ class SynapseLLMWorker(LoraNotSupportedWorkerBase, LocalOrDistributedWorkerBase)
         num_device_blocks = self.scheduler_config.max_num_seqs
 
         # Swap not yet supported with SynapseLLM backend in hpu devices.
-        num_swap_blocks = 0
+        #num_swap_blocks = 0
 
-        return num_device_blocks, num_swap_blocks
+        num_hpu_blocks = 512
+        num_cpu_blocks = 0
 
+        return num_hpu_blocks, num_cpu_blocks
+        #return num_device_blocks, num_swap_blocks
+
+    # APC TODO: 
     def initialize_cache(self, num_gpu_blocks: int,
                          num_cpu_blocks: int) -> None:
         """Initialize the KV cache.
@@ -130,16 +138,36 @@ class SynapseLLMWorker(LoraNotSupportedWorkerBase, LocalOrDistributedWorkerBase)
         num_swap_blocks = num_cpu_blocks
 
         # Different values are not tested.
-        assert num_swap_blocks == 0
-        assert num_device_blocks == self.scheduler_config.max_num_seqs
+        #assert num_swap_blocks == 0
+        #assert num_device_blocks == self.scheduler_config.max_num_seqs
 
         self.cache_config.num_gpu_blocks = num_device_blocks
         self.cache_config.num_cpu_blocks = num_swap_blocks
 
+    # APC TODO: 
+    def _init_cache_engine(self):
+        
+        import pdb;pdb.set_trace()
+        assert self.cache_config.num_gpu_blocks is not None
+        # self.cache_engine = [
+        #     HPUCacheEngine(self.cache_config, self.model_config,
+        #                    self.parallel_config, self.device_config)
+        #     for _ in range(self.parallel_config.pipeline_parallel_size)
+        # ]
+        
+        # self.cache_engine[0].gpu_cache list(tuple) 
+        # self.hpu_cache = [
+        #     self.cache_engine[ve].gpu_cache
+        #     for ve in range(self.parallel_config.pipeline_parallel_size)
+        # ]
+        # bind_kv_cache(self.compilation_config.static_forward_context,
+        #               self.hpu_cache)
+        
     @property
     def do_metadata_broadcast(self) -> bool:
         return False
 
+    # APC TODO
     @property
     def kv_cache(self) -> Optional[List[List[torch.Tensor]]]:
         # kv cache memory will be maintained insdise SynapseLLM.
@@ -179,3 +207,27 @@ class SynapseLLMWorker(LoraNotSupportedWorkerBase, LocalOrDistributedWorkerBase)
             1,
             1,
         )
+
+# APC TODO
+class SynapseLLMCacheEngine(CacheEngine):
+
+    def _allocate_kv_cache(
+        self,
+        num_blocks: int,
+        device: str,
+    ) -> List[Tuple[torch.Tensor, torch.Tensor]]:
+        """Allocates KV cache on the specified device."""
+        ...
+        # kv_cache_shape = self.attn_backend.get_kv_cache_shape(
+        #     num_blocks, self.block_size, self.num_kv_heads, self.head_size)
+        # kv_cache: List[Tuple[torch.Tensor, torch.Tensor]] = []
+        # for _ in range(self.num_attention_layers):
+        #     key_cache = torch.zeros(kv_cache_shape,
+        #                             dtype=self.dtype,
+        #                             device=device)
+        #     value_cache = torch.zeros(kv_cache_shape,
+        #                               dtype=self.dtype,
+        #                               device=device)
+        #     kv_layer = (key_cache, value_cache)
+        #     kv_cache.append(kv_layer)
+        # return kv_cache
