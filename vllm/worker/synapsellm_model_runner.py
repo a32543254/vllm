@@ -145,18 +145,18 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
     #     return indices, offsets
 
     def precompute_indices_and_offsets(self, block_size, slot_mapping, is_prompt):
-        slot_mapping = slot_mapping.flatten()
-        indices = torch.div(slot_mapping, block_size, rounding_mode="floor")
-        if is_prompt:
-            if len(indices) % block_size != 0:
-                pad_size = block_size - (len(indices) % block_size)
-                indices = torch.cat([indices, torch.full((pad_size,), _PAD_SLOT_ID)])
+        #slot_mapping = slot_mapping.flatten()
+        indices_list = []
+        offsets_list = []
+
+        for row in slot_mapping:
+            valid_slots = row[row != -1]
+            indices = torch.div(valid_slots, block_size, rounding_mode="floor")
+            offsets = torch.fmod(valid_slots, block_size)
             
-            indices = indices.unflatten(0, (-1, block_size))[:, 0]
-            offsets = None
-        else:
-            offsets = torch.fmod(slot_mapping, block_size)
-        return indices, offsets
+            indices_list.append(indices)
+            offsets_list.append(offsets)
+        return indices_list, offsets_list
 
     def _prepare_prompt(
         self,
@@ -170,6 +170,7 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
         token_type_ids = None
         attention_mask: List[List[int]] = []
         input_block_ids: List[int] = []
+        block_table: List[List[int]] = []
         slot_mapping: List[List[int]] = []
         kv_cache_block_ids_freed: List[int] = []
 
@@ -196,7 +197,8 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
             attention_mask.append([1]*seq_len)
 
             assert seq_group_metadata.block_tables is not None
-            block_table = seq_group_metadata.block_tables[seq_id]
+            cur_block_table = seq_group_metadata.block_tables[seq_id]
+            block_table.append(seq_group_metadata.block_tables[seq_id])
 
             input_block_ids.append(seq_ids[0])
 
@@ -206,13 +208,11 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
 
             slot_mapping.append([])
 
-
             for i, pos in enumerate(token_positions):
-                block_number = block_table[pos // block_size]
+                block_number = cur_block_table[pos // block_size]
                 block_offset = pos % block_size
                 slot = block_number * block_size + block_offset
                 slot_mapping[-1].append(slot)
-            
             # if block_table is not None:
             #     _PAD_SLOT_ID = -1
             #     slot_mapping = [_PAD_SLOT_ID] * len(token_positions)
@@ -263,18 +263,20 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
                                        dtype=torch.long,
                                        device=self.device)
 
+        # each seq should have the same length, otherwise pytorch raise error.
+        # slot_mapping = torch.tensor(slot_mapping,
+        #                             dtype=torch.long,
+        #                             device=self.device)
+        
         slot_mapping = make_tensor_with_pad(slot_mapping,
                                             max_len=max_seq_len,
                                             pad=_PAD_SLOT_ID,
                                             dtype=torch.long,
                                             device=self.device)
-        
 
         block_index, block_offset = self.precompute_indices_and_offsets(block_size, slot_mapping, False)
-        print(f'block_table: {block_table}, slot_mapping = {slot_mapping}, block_index = {block_index}, block_offset: {block_offset}')
-        block_table = torch.tensor(block_table,
-                                       dtype=torch.long,
-                                       device=self.device)
+
+        print(f'_prepare_prompt block_table: {block_table}, slot_mapping = {slot_mapping}, block_index = {block_index}, block_offset: {block_offset}')
 
 
         multi_modal_kwargs = MultiModalKwargs.batch(multi_modal_kwargs_list)
@@ -296,6 +298,7 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
         token_type_ids = None
         attention_mask = None
         input_block_ids: List[int] = []
+        block_table: List[List[int]] = []
         slot_mapping: List[List[int]] = []
         context_lens: List[int] = []
 
@@ -316,12 +319,13 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
                 context_lens.append(seq_len)
 
                 assert seq_group_metadata.block_tables is not None
-                block_table = seq_group_metadata.block_tables[seq_id]
+                cur_block_table = seq_group_metadata.block_tables[seq_id]
+                block_table.append(seq_group_metadata.block_tables[seq_id])
                 #assert len(block_table) == 1
 
                 input_block_ids.append(seq_ids[0])
                 
-                block_number = block_table[position // block_size]
+                block_number = cur_block_table[position // block_size]
                 block_offset = position % block_size
                 slot = block_number * block_size + block_offset
                 slot_mapping.append([slot])
@@ -355,7 +359,7 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
         block_index, block_offset = self.precompute_indices_and_offsets(
             block_size, slot_mapping, False)
 
-        print(f'block_table: {block_table}, slot_mapping = {slot_mapping}, block_index = {block_index}, block_offset: {block_offset}')
+        print(f'_prepare_decode, block_table: {block_table}, slot_mapping = {slot_mapping}, block_index = {block_index}, block_offset: {block_offset}')
         return (input_tokens, input_positions, token_type_ids, attention_mask, input_block_ids, block_table, block_index, block_offset)
 
     def make_model_input_from_broadcasted_tensor_dict(
