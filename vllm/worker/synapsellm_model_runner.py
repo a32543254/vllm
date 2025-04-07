@@ -270,8 +270,8 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
                                             device=self.device)
         
 
-        block_index, block_offset = self.precompute_indices_and_offsets(block_size, slot_mapping, True)
-
+        block_index, block_offset = self.precompute_indices_and_offsets(block_size, slot_mapping, False)
+        print(f'block_table: {block_table}, slot_mapping = {slot_mapping}, block_index = {block_index}, block_offset: {block_offset}')
         block_table = torch.tensor(block_table,
                                        dtype=torch.long,
                                        device=self.device)
@@ -355,6 +355,7 @@ class SynapseLLMModelRunner(ModelRunnerBase[ModelInputForSynapseLLM]):
         block_index, block_offset = self.precompute_indices_and_offsets(
             block_size, slot_mapping, False)
 
+        print(f'block_table: {block_table}, slot_mapping = {slot_mapping}, block_index = {block_index}, block_offset: {block_offset}')
         return (input_tokens, input_positions, token_type_ids, attention_mask, input_block_ids, block_table, block_index, block_offset)
 
     def make_model_input_from_broadcasted_tensor_dict(
